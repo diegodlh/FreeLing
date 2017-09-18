@@ -2,10 +2,9 @@
 
 ### REQUIRES python 3 !!!!
 
-## Run:  ./sample.py
-## Reads from stdin and writes to stdout
+## Run:  ./sample.py file_in file_out
 ## For example:
-##     ./sample.py <test.txt >test_out.txt
+##     ./sample.py test.txt test_out.txt
 
 import freeling
 import sys
@@ -33,7 +32,7 @@ def printTree(ptree, depth):
 
         print(''.rjust(depth*2),end='');
         print(']',end='');
-        
+
     print('');
 
 ## ------------  output a parse tree ------------
@@ -65,7 +64,7 @@ def printDepTree(dtree, depth):
             d = node.nth_child_ref(i);
             if (d.begin().get_info().is_chunk()) :
                 ch[d.begin().get_info().get_chunk_ord()] = d;
- 
+
         for i in sorted(ch.keys()) :
             printDepTree(ch[i], depth + 1);
 
@@ -92,46 +91,57 @@ freeling.util_init_locale("default");
 la=freeling.lang_ident(DATA+"common/lang_ident/ident.dat");
 
 # create options set for maco analyzer. Default values are Ok, except for data files.
-op= freeling.maco_options("es");
-op.set_data_files( "", 
-                   DATA + "common/punct.dat",
-                   DATA + LANG + "/dicc.src",
-                   DATA + LANG + "/afixos.dat",
-                   "",
-                   DATA + LANG + "/locucions.dat", 
-                   DATA + LANG + "/np.dat",
-                   DATA + LANG + "/quantities.dat",
-                   DATA + LANG + "/probabilitats.dat");
+op= freeling.maco_options(LANG);  # maco (Morphological Analyzer) options object
+op.set_data_files( "",  # User Map module
+                   DATA + "common/punct.dat",  # punctuation
+                   DATA + LANG + "/dicc.src",  # Dictionary Search module: lemmas and PoS tags
+                   DATA + LANG + "/afixos.dat",  # affixation rules (used by Dictionary Search module)
+                   "",  # compounding rules (used by Dictionary Search module)
+                   DATA + LANG + "/locucions.dat",  # multiword
+                   DATA + LANG + "/np.dat",  # Named Entity recognition
+                   DATA + LANG + "/quantities.dat",  # depends on number detecion module
+                   DATA + LANG + "/probabilitats.dat");  # needed for PoS later
 
 # create analyzers
 tk=freeling.tokenizer(DATA+LANG+"/tokenizer.dat");
 sp=freeling.splitter(DATA+LANG+"/splitter.dat");
-sid=sp.open_session();
-mf=freeling.maco(op);
+sid=sp.open_session();  # open a splitting session
+mf=freeling.maco(op);  # creates Morphological Analyzer with maco_options object options
 
 # activate mmorpho odules to be used in next call
-mf.set_active_options(False, True, True, True,  # select which among created 
-                      True, True, False, True,  # submodules are to be used. 
+mf.set_active_options(False, True, True, True,  # select which among created
+                      True, True, False, True,  # submodules are to be used.
                       True, True, True, True ); # default: all created submodules are used
 
 # create tagger, sense anotator, and parsers
-tg=freeling.hmm_tagger(DATA+LANG+"/tagger.dat",True,2);
-sen=freeling.senses(DATA+LANG+"/senses.dat");
-parser= freeling.chart_parser(DATA+LANG+"/chunker/grammar-chunk.dat");
-dep=freeling.dep_txala(DATA+LANG+"/dep_txala/dependences.dat", parser.get_start_symbol());
+tg=freeling.hmm_tagger(DATA+LANG+"/tagger.dat",True,2);  # classical trigram Markovian tagger
+# True: words that carry retokenization mark (set by dictionary or affix handling modules)
+# will be retokenized after tagging. Apparently, already retokenized by Dictionary Module (as per manual)
+# 2: if ambiguos, force selection after retokenization
+sen=freeling.senses(DATA+LANG+"/senses.dat");  # returns list of senses for each lemma
+parser= freeling.chart_parser(DATA+LANG+"/chunker/grammar-chunk.dat");  # enriches each sentence object with a parse_tree object, whose leaves have a link to the sentence words.
+# chart_parser.get_start_symbol returns the initial symbol of the grammar, which is needed by the dependency parser.
+dep=freeling.dep_txala(DATA+LANG+"/dep_txala/dependences.dat", parser.get_start_symbol()); # Rule-based Dependency Parser
 
+file_in = open(sys.argv[1])
+file_out = open(sys.argv[2], 'w')
 # process input text
-lin=sys.stdin.readline();
+lin=file_in.readline();
 
-print ("Text language is: "+la.identify_language(lin,["es","ca","en","it"])+"\n");
+print ("Text language is: "+la.identify_language(lin)+"\n");
+# here it uses just first line for language detection
 
 while (lin) :
-        
+    import pdb
+    pdb.set_trace()
     l = tk.tokenize(lin);
-    ls = sp.split(sid,l,False);
+    ls = sp.split(sid,l,False);  # False: don't flush buffer; wait to see what comes next
 
-    ls = mf.analyze(ls);
-    ls = tg.analyze(ls);
+    ls = mf.analyze(ls);  # Morphological Analyzer
+    # Phonetical encoding and alternative suggestion modules may be included
+    # for possibly mispelled words by children here.
+    ls = tg.analyze(ls);  # it seems to fail if run without mf analysis first
+    # what adds the above? does it change if I had "del" here, for example?
     ls = sen.analyze(ls);
     ls = parser.analyze(ls);
     ls = dep.analyze(ls);
@@ -149,8 +159,10 @@ while (lin) :
        dp = s.get_dep_tree();
        printDepTree(dp, 0)
 
-    lin=sys.stdin.readline();
-    
-# clean up       
+    lin=file_in.readline();
+
+# clean up
 sp.close_session(sid);
-    
+
+file_in.close()
+file_out.close()
