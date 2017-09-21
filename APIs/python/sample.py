@@ -132,18 +132,19 @@ print ("Text language is: "+la.identify_language(lin)+"\n");
 # here it uses just first line for language detection
 
 while (lin) :
-    import pdb
-    pdb.set_trace()
     l = tk.tokenize(lin);
-    ls = sp.split(sid,l,False);  # False: don't flush buffer; wait to see what comes next
+    ls = sp.split(sid,l,False);  # False: don't flush buffer; wait to see
+    # what comes next (in next line input)
 
     ls = mf.analyze(ls);  # Morphological Analyzer
     # Phonetical encoding and alternative suggestion modules may be included
     # for possibly mispelled words by children here.
     ls = tg.analyze(ls);  # it seems to fail if run without mf analysis first
-    # what adds the above? does it change if I had "del" here, for example?
-    ls = sen.analyze(ls);
-    ls = parser.analyze(ls);
+    # what adds the above? I'm not sure what it adds if retokenization is delete_TreeOfNode
+    # at the MF step
+
+    ls = sen.analyze(ls);  # sense annotator, to associate to each word its possible WordNet synsets
+    ls = parser.analyze(ls);  # parse tree: ordered, rooted tree that represents the syntactic structure of a string
     ls = dep.analyze(ls);
 
     ## output results
@@ -151,7 +152,10 @@ while (lin) :
        ws = s.get_words();
        for w in ws :
           print(w.get_form()+" "+w.get_lemma()+" "+w.get_tag()+" "+w.get_senses_string());
+          # for some reason, senses (synsets) were not ranked (number between ":" and follwing "/")
        print ("");
+       import pdb
+       pdb.set_trace()
 
        tr = s.get_parse_tree();
        printTree(tr, 0);
